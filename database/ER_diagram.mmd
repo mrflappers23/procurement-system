@@ -1,0 +1,134 @@
+erDiagram
+    DEPARTMENTS ||--o{ USERS : "employs"
+    DEPARTMENTS ||--o{ REQUISITIONS : "originates"
+    USERS ||--o{ REQUISITIONS : "requests"
+    USERS ||--o{ REQUISITIONS : "decides (approver)"
+    USERS ||--o{ PURCHASE_ORDERS : "creates"
+    USERS ||--o{ GOODS_RECEIPTS : "receives"
+    USERS ||--o{ SUPPLIER_RATINGS : "rates"
+    USERS ||--o{ INVOICE_MATCHING : "matches / approves payment"
+    USERS ||--o{ ACTIVITY_LOG : "performs"
+
+    SUPPLIERS ||--o{ SUPPLIER_RATINGS : "receives"
+    SUPPLIERS ||--o{ REQUISITIONS : "preferred by"
+    SUPPLIERS ||--o{ PURCHASE_ORDERS : "fulfills"
+    SUPPLIERS ||--o{ INVOICES : "issues"
+
+    REQUISITIONS ||--o| PURCHASE_ORDERS : "generates (0..1)"
+    PURCHASE_ORDERS ||--o{ GOODS_RECEIPTS : "delivered as"
+    PURCHASE_ORDERS ||--o{ INVOICES : "billed as"
+    PURCHASE_ORDERS ||--|| INVOICE_MATCHING : "validated by"
+    GOODS_RECEIPTS ||--o| INVOICE_MATCHING : "referenced in"
+    INVOICES ||--o| INVOICE_MATCHING : "referenced in"
+
+    DEPARTMENTS {
+        int department_id PK
+        varchar name
+    }
+
+    USERS {
+        int user_id PK
+        varchar name
+        varchar email
+        varchar password_hash
+        enum role "employee, manager, procurement_officer, admin"
+        int department_id FK
+        timestamp created_at
+    }
+
+    SUPPLIERS {
+        int supplier_id PK
+        varchar name
+        varchar category
+        varchar contact_name
+        varchar email
+        varchar phone
+        varchar address
+        varchar payment_terms
+        date contract_start
+        date contract_end
+        enum status "active, inactive"
+    }
+
+    SUPPLIER_RATINGS {
+        int rating_id PK
+        int supplier_id FK
+        decimal delivery_score
+        decimal quality_score
+        decimal cost_score
+        varchar notes
+        int rated_by FK
+        timestamp rated_at
+    }
+
+    REQUISITIONS {
+        int requisition_id PK
+        varchar req_code
+        int department_id FK
+        int requested_by FK
+        varchar item_description
+        int quantity
+        decimal estimated_amount
+        int preferred_supplier_id FK
+        text justification
+        enum status "pending, approved, rejected"
+        int decided_by FK
+        timestamp decided_at
+        varchar decision_notes
+    }
+
+    PURCHASE_ORDERS {
+        int po_id PK
+        varchar po_code
+        int requisition_id FK
+        int supplier_id FK
+        int quantity
+        decimal unit_price
+        decimal total_amount
+        date issue_date
+        date expected_delivery_date
+        enum status "sent, confirmed, delivered, cancelled"
+        int created_by FK
+    }
+
+    GOODS_RECEIPTS {
+        int receipt_id PK
+        int po_id FK
+        int received_by FK
+        date received_date
+        int quantity_received
+        varchar condition_notes
+    }
+
+    INVOICES {
+        int invoice_id PK
+        int po_id FK
+        int supplier_id FK
+        varchar invoice_number
+        date invoice_date
+        int quantity_billed
+        decimal unit_price
+        decimal total_amount
+    }
+
+    INVOICE_MATCHING {
+        int matching_id PK
+        int po_id FK
+        int receipt_id FK
+        int invoice_id FK
+        enum match_status "pending, matched, mismatch"
+        varchar discrepancy_notes
+        int matched_by FK
+        timestamp matched_at
+        tinyint payment_approved
+        int payment_approved_by FK
+        timestamp payment_approved_at
+    }
+
+    ACTIVITY_LOG {
+        int log_id PK
+        int user_id FK
+        varchar action
+        varchar description
+        timestamp created_at
+    }
