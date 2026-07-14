@@ -55,6 +55,32 @@ CREATE TABLE suppliers (
 ) ENGINE=InnoDB;
 
 -- ---------------------------------------------------------------------
+-- Supplier Catalogue
+-- ---------------------------------------------------------------------
+DROP TABLE IF EXISTS supplier_catalogue;
+
+CREATE TABLE supplier_catalogue (
+    catalogue_id INT AUTO_INCREMENT PRIMARY KEY,
+
+    supplier_id INT NOT NULL,
+
+    product_name VARCHAR(150) NOT NULL,
+
+    description TEXT NULL,
+
+    unit VARCHAR(50) NOT NULL,
+
+    unit_price DECIMAL(10,2) NOT NULL,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_supplier_catalogue_supplier
+        FOREIGN KEY (supplier_id)
+        REFERENCES suppliers(supplier_id)
+        ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- ---------------------------------------------------------------------
 -- Supplier performance ratings (delivery / quality / cost)
 -- ---------------------------------------------------------------------
 DROP TABLE IF EXISTS supplier_ratings;

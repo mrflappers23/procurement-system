@@ -11,8 +11,8 @@ $stmt = $pdo->prepare("
            gr.quantity_received, inv.quantity_billed, inv.total_amount AS inv_total, inv.invoice_number
     FROM purchase_orders po
     JOIN invoice_matching im ON im.po_id = po.po_id
-    LEFT JOIN goods_receipts gr ON gr.receipt_id = im.receipt_id
-    LEFT JOIN invoices inv ON inv.invoice_id = im.invoice_id
+    LEFT JOIN goods_receipts gr ON gr.po_id = po.po_id
+    LEFT JOIN invoices inv ON inv.po_id = po.po_id
     WHERE po.po_id = ?
 ");
 $stmt->execute([$poId]);

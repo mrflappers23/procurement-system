@@ -6,16 +6,47 @@ require_login();
 $me = current_user($pdo);
 
 $rows = $pdo->query("
-    SELECT po.po_id, po.po_code, po.quantity, po.unit_price, po.total_amount, po.issue_date,
-           s.name AS supplier_name,
-           im.matching_id, im.match_status, im.discrepancy_notes, im.payment_approved,
-           gr.receipt_id, gr.quantity_received, gr.received_date, gr.condition_notes,
-           inv.invoice_id, inv.invoice_number, inv.quantity_billed, inv.unit_price AS inv_unit_price, inv.total_amount AS inv_total, inv.invoice_date
+    SELECT
+    po.po_id,
+    po.po_code,
+    po.quantity,
+    po.unit_price,
+    po.total_amount,
+    po.issue_date,
+
+    s.name AS supplier_name,
+
+    c.product_name,
+    c.description,
+    c.unit,
+
+    im.matching_id,
+    im.match_status,
+    im.discrepancy_notes,
+    im.payment_approved,
+
+    gr.receipt_id,
+    gr.quantity_received,
+    gr.received_date,
+    gr.condition_notes,
+
+    inv.invoice_id,
+    inv.invoice_number,
+    inv.quantity_billed,
+    inv.unit_price AS inv_unit_price,
+    inv.total_amount AS inv_total,
+    inv.invoice_date
     FROM purchase_orders po
-    JOIN suppliers s ON s.supplier_id = po.supplier_id
-    LEFT JOIN invoice_matching im ON im.po_id = po.po_id
-    LEFT JOIN goods_receipts gr ON gr.receipt_id = im.receipt_id
-    LEFT JOIN invoices inv ON inv.invoice_id = im.invoice_id
+JOIN suppliers s
+    ON s.supplier_id = po.supplier_id
+LEFT JOIN supplier_catalogue c
+    ON c.catalogue_id = po.catalogue_id
+LEFT JOIN invoice_matching im
+    ON im.po_id = po.po_id
+LEFT JOIN goods_receipts gr
+    ON gr.po_id = po.po_id
+LEFT JOIN invoices inv
+    ON inv.invoice_id = im.invoice_id
     WHERE po.status = 'delivered'
     ORDER BY po.issue_date DESC
 ")->fetchAll();
@@ -50,11 +81,15 @@ require __DIR__ . '/includes/header.php';
   $canManage = has_role(['procurement_officer','admin']);
   $status = $r['match_status'] ?? 'pending';
 ?>
-<div class="section-head" style="margin-top:26px;">
+<div class="match-container" style="margin-top:26px;">
   <div>
     <div class="section-title">3-way match — <?= e($r['po_code']) ?></div>
-    <div class="section-desc"><?= e($r['supplier_name']) ?> · Qty <?= (int)$r['quantity'] ?> · <?= peso($r['total_amount']) ?></div>
-  </div>
+    <div class="section-desc">
+    <?= e($r['supplier_name']) ?>
+ · <?= e($r['product_name'] ?? 'Product') ?>
+ · Qty <?= (int)$r['quantity'] ?>
+ · <?= peso($r['total_amount']) ?>
+</div>
   <?php if ($r['payment_approved']): ?>
     <span class="stamp approved">Payment approved</span>
   <?php else: ?>

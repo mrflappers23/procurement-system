@@ -6,15 +6,65 @@ require_role(['procurement_officer','admin']);
 
 $requisitionId = !empty($_POST['requisition_id']) ? (int)$_POST['requisition_id'] : null;
 $supplierId    = (int)($_POST['supplier_id'] ?? 0);
+$catalogueId = (int)($_POST['catalogue_id'] ?? 0);
 $quantity      = max(1, (int)($_POST['quantity'] ?? 1));
-$unitPrice     = (float)($_POST['unit_price'] ?? 0);
 $issueDate     = $_POST['issue_date'] ?: date('Y-m-d');
 $expectedDate  = $_POST['expected_delivery_date'] ?: null;
 
-if ($supplierId <= 0 || $unitPrice <= 0) {
-    flash_set('Please choose a supplier and enter a valid unit price.', 'error');
+if ($supplierId <= 0 || $catalogueId <= 0) {
+
+    flash_set(
+        'Please choose a supplier and product.',
+        'error'
+    );
+
     redirect('../purchase_orders.php');
+
 }
+
+$stmt = $pdo->prepare("
+    SELECT
+        supplier_id,
+        product_name,
+        unit_price
+    FROM supplier_catalogue
+    WHERE catalogue_id = ?
+");
+
+$stmt->execute([$catalogueId]);
+
+$product = $stmt->fetch();
+
+if (!$product) {
+
+    flash_set(
+        'Selected product no longer exists.',
+        'error'
+    );
+
+    redirect('../purchase_orders.php');
+
+}
+
+/*
+Make sure the selected product
+belongs to the selected supplier.
+*/
+
+if ($product['supplier_id'] != $supplierId) {
+
+    flash_set(
+        'Invalid supplier/product combination.',
+        'error'
+    );
+
+    redirect('../purchase_orders.php');
+
+}
+
+$unitPrice = $product['unit_price'];
+
+$total = $unitPrice * $quantity;
 
 // A requisition must be approved, and must not already have a PO, to be converted
 if ($requisitionId) {
@@ -33,13 +83,38 @@ if ($requisitionId) {
     }
 }
 
-$total = $quantity * $unitPrice;
 $code = generate_code($pdo, 'purchase_orders', 'po_code', 'PO');
 
 $stmt = $pdo->prepare("INSERT INTO purchase_orders
-    (po_code, requisition_id, supplier_id, quantity, unit_price, total_amount, issue_date, expected_delivery_date, status, created_by)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'sent', ?)");
-$stmt->execute([$code, $requisitionId, $supplierId, $quantity, $unitPrice, $total, $issueDate, $expectedDate, current_user_id()]);
+(
+    po_code,
+    requisition_id,
+    supplier_id,
+    catalogue_id,
+    quantity,
+    unit_price,
+    total_amount,
+    issue_date,
+    expected_delivery_date,
+    status,
+    created_by
+)
+    VALUES
+(
+    ?, ?, ?, ?, ?, ?, ?, ?, ?, 'sent', ?
+)");
+$stmt->execute([
+    $code,
+    $requisitionId,
+    $supplierId,
+    $catalogueId,
+    $quantity,
+    $unitPrice,
+    $total,
+    $issueDate,
+    $expectedDate,
+    current_user_id()
+]);
 
 $supplierName = $pdo->query("SELECT name FROM suppliers WHERE supplier_id = " . (int)$supplierId)->fetchColumn();
 log_activity($pdo, current_user_id(), 'po_sent', "$code sent to " . $supplierName . ($requisitionId ? ' (auto-generated from requisition)' : ' (manual PO)'));

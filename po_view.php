@@ -6,11 +6,28 @@ require_login();
 $me = current_user($pdo);
 
 $id = (int)($_GET['id'] ?? 0);
-$stmt = $pdo->prepare("SELECT po.*, s.name AS supplier_name, s.supplier_id, r.req_code
-                        FROM purchase_orders po
-                        JOIN suppliers s ON s.supplier_id = po.supplier_id
-                        LEFT JOIN requisitions r ON r.requisition_id = po.requisition_id
-                        WHERE po.po_id = ?");
+$stmt = $pdo->prepare("
+    SELECT
+        po.*,
+        s.name AS supplier_name,
+        s.supplier_id,
+        r.req_code,
+        c.product_name,
+        c.description,
+        c.unit
+    FROM purchase_orders po
+
+    JOIN suppliers s
+        ON s.supplier_id = po.supplier_id
+
+    LEFT JOIN requisitions r
+        ON r.requisition_id = po.requisition_id
+
+    LEFT JOIN supplier_catalogue c
+        ON c.catalogue_id = po.catalogue_id
+
+    WHERE po.po_id = ?
+");
 $stmt->execute([$id]);
 $po = $stmt->fetch();
 if (!$po) { http_response_code(404); die('Purchase order not found.'); }
@@ -47,11 +64,83 @@ $stepIndex = ['sent'=>1,'confirmed'=>2,'delivered'=>3,'cancelled'=>1][$po['statu
     </div>
   <?php endif; ?>
 
-  <div class="match-row" style="border-bottom:1px solid var(--line-soft); padding:10px 0; margin-top:18px;"><span class="k">Quantity</span><span class="v"><?= (int)$po['quantity'] ?></span></div>
-  <div class="match-row" style="border-bottom:1px solid var(--line-soft); padding:10px 0;"><span class="k">Unit price</span><span class="v"><?= peso($po['unit_price']) ?></span></div>
-  <div class="match-row" style="border-bottom:1px solid var(--line-soft); padding:10px 0;"><span class="k">Total</span><span class="v" style="font-size:14px;"><?= peso($po['total_amount']) ?></span></div>
-  <div class="match-row" style="border-bottom:1px solid var(--line-soft); padding:10px 0;"><span class="k">Issue date</span><span class="v"><?= e(date('M j, Y', strtotime($po['issue_date']))) ?></span></div>
-  <div class="match-row" style="padding:10px 0;"><span class="k">Expected delivery</span><span class="v"><?= $po['expected_delivery_date'] ? e(date('M j, Y', strtotime($po['expected_delivery_date']))) : '—' ?></span></div>
+  <h3 style="margin:22px 0 12px;">
+    Order Details
+</h3>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Product</th>
+                <th>Unit</th>
+                <th style="text-align:center;">Qty</th>
+                <th style="text-align:right;">Unit Price</th>
+                <th style="text-align:right;">Total</th>
+            </tr>
+        </thead>
+
+        <tbody>
+
+            <tr>
+
+                <td>
+                    <strong><?= e($po['product_name']) ?></strong>
+
+                    <?php if(!empty($po['description'])): ?>
+
+                        <br>
+
+                        <small style="color:var(--text-soft);">
+                            <?= e($po['description']) ?>
+                        </small>
+
+                    <?php endif; ?>
+
+                </td>
+
+                <td><?= e($po['unit']) ?></td>
+
+                <td style="text-align:center;">
+                    <?= $po['quantity'] ?>
+                </td>
+
+                <td style="text-align:right;">
+                    <?= peso($po['unit_price']) ?>
+                </td>
+
+                <td style="text-align:right;">
+                    <?= peso($po['total_amount']) ?>
+                </td>
+
+            </tr>
+
+        </tbody>
+    </table>
+
+    <hr style="margin:20px 0;">
+
+    <div class="match-row">
+        <span class="k">Issue Date</span>
+        <span class="v">
+            <?= e(date('M j, Y', strtotime($po['issue_date']))) ?>
+        </span>
+    </div>
+
+    <div class="match-row">
+        <span class="k">Expected Delivery</span>
+        <span class="v">
+            <?= $po['expected_delivery_date']
+                ? e(date('M j, Y', strtotime($po['expected_delivery_date'])))
+                : '—' ?>
+        </span>
+    </div>
+
+    <div class="match-row">
+        <span class="k">Grand Total</span>
+        <span class="v" style="font-size:16px;font-weight:700;">
+            <?= peso($po['total_amount']) ?>
+        </span>
+    </div>
 </div>
 
 <?php if (has_role(['procurement_officer','admin']) && !in_array($po['status'], ['cancelled'])): ?>

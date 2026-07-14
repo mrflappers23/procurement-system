@@ -80,6 +80,69 @@ require __DIR__ . '/includes/header.php';
           <div class="field"><label>Contract start</label><input type="date" name="contract_start"></div>
           <div class="field"><label>Contract end</label><input type="date" name="contract_end"></div>
         </div>
+              <hr style="margin:24px 0;">
+
+      <div class="modal-title">Supplier Catalogue</div>
+      <br>
+      <div id="catalogue-container">
+
+    <div class="catalogue-item">
+
+        <div class="field-row">
+
+            <div class="field">
+                <label>Product Name</label>
+                <input
+                    type="text"
+                    name="product_name[]"
+                    placeholder="Bond Paper">
+            </div>
+
+            <div class="field">
+                <label>Description</label>
+                <input
+                    type="text"
+                    name="description[]"
+                    placeholder="A4 80 GSM">
+            </div>
+
+        </div>
+
+        <div class="field-row">
+
+            <div class="field">
+                <label>Unit</label>
+                <input
+                    type="text"
+                    name="unit[]"
+                    placeholder="Ream">
+            </div>
+
+            <div class="field">
+                <label>Unit Price</label>
+                <input
+                    type="number"
+                    name="unit_price[]"
+                    step="0.01"
+                    min="0"
+                    placeholder="245.00">
+            </div>
+
+        </div>
+
+        <hr style="margin:18px 0;">
+
+    </div>
+
+</div>
+
+      <div style="margin-top:15px;">
+          <button type="button"
+                  class="btn btn-ghost"
+                  onclick="addCatalogueItem()">
+              + Add Product
+          </button>
+      </div>
       </div>
       <div class="modal-foot">
         <button type="button" class="btn btn-ghost" onclick="closeModal('modal-new-supplier')">Cancel</button>
@@ -88,5 +151,65 @@ require __DIR__ . '/includes/header.php';
     </form>
   </div>
 </div>
+<script>
 
+function addCatalogueItem() {
+
+    const container = document.getElementById('catalogue-container');
+
+    const item = document.createElement('div');
+
+    item.className = 'catalogue-item';
+
+    item.style.marginTop = '12px';
+
+    item.innerHTML = `
+
+    <div class="field-row">
+
+        <div class="field">
+            <input
+                type="text"
+                name="product_name[]"
+                placeholder="Product Name">
+        </div>
+
+        <div class="field">
+            <input
+                type="text"
+                name="description[]"
+                placeholder="Description">
+        </div>
+
+    </div>
+
+    <div class="field-row">
+
+        <div class="field">
+            <input
+                type="text"
+                name="unit[]"
+                placeholder="Unit">
+        </div>
+
+        <div class="field">
+            <input
+                type="number"
+                name="unit_price[]"
+                step="0.01"
+                min="0"
+                placeholder="Price">
+        </div>
+
+    </div>
+
+    <hr style="margin:18px 0;">
+
+  `;
+
+    container.appendChild(item);
+
+}
+
+</script>
 <?php require __DIR__ . '/includes/footer.php'; ?>

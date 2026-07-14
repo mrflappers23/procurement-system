@@ -25,10 +25,25 @@ $totalCount = array_sum($counts);
 
 // approved requisitions that don't have a PO yet (eligible for auto-generation)
 $eligibleReqs = $pdo->query("
-    SELECT r.requisition_id, r.req_code, r.item_description, r.quantity, r.estimated_amount, r.preferred_supplier_id
+    SELECT
+        r.requisition_id,
+        r.req_code,
+        r.catalogue_id,
+        r.item_description,
+        r.quantity,
+        r.estimated_amount,
+        r.preferred_supplier_id,
+        c.product_name,
+        c.unit,
+        c.unit_price
     FROM requisitions r
-    LEFT JOIN purchase_orders po ON po.requisition_id = r.requisition_id
-    WHERE r.status = 'approved' AND po.po_id IS NULL
+    LEFT JOIN supplier_catalogue c
+        ON r.catalogue_id = c.catalogue_id
+    LEFT JOIN purchase_orders po
+        ON po.requisition_id = r.requisition_id
+    WHERE
+        r.status='approved'
+        AND po.po_id IS NULL
     ORDER BY r.req_code
 ")->fetchAll();
 $suppliersList = $pdo->query("SELECT * FROM suppliers WHERE status='active' ORDER BY name")->fetchAll();
@@ -84,28 +99,108 @@ require __DIR__ . '/includes/header.php';
           <select name="requisition_id" id="req-select" onchange="fillFromReq(this)">
             <option value="">— Manual purchase order —</option>
             <?php foreach ($eligibleReqs as $r): ?>
-              <option value="<?= $r['requisition_id'] ?>"
-                data-qty="<?= $r['quantity'] ?>"
-                data-amount="<?= $r['estimated_amount'] ?>"
-                data-supplier="<?= $r['preferred_supplier_id'] ?>">
-                <?= e($r['req_code']) ?> — <?= e($r['item_description']) ?> (<?= peso($r['estimated_amount']) ?>)
+              <option
+              value="<?= $r['requisition_id'] ?>"
+              data-catalogue="<?= $r['catalogue_id'] ?>"
+              data-product="<?= e($r['product_name']) ?>"
+              data-unit="<?= e($r['unit']) ?>"
+              data-price="<?= $r['unit_price'] ?>"
+              data-qty="<?= $r['quantity'] ?>"
+              data-supplier="<?= $r['preferred_supplier_id'] ?>">
+
+              <?= e($r['req_code']) ?>
+              —
+              <?= e($r['product_name']) ?>
+              (<?= $r['quantity'] ?> <?= e($r['unit']) ?>)
               </option>
             <?php endforeach; ?>
           </select>
         </div>
-        <div class="field">
-          <label>Supplier</label>
-          <select name="supplier_id" id="supplier-select" required>
-            <option value="">Select a supplier</option>
-            <?php foreach ($suppliersList as $s): ?>
-              <option value="<?= $s['supplier_id'] ?>"><?= e($s['name']) ?></option>
-            <?php endforeach; ?>
-          </select>
-        </div>
         <div class="field-row">
-          <div class="field"><label>Quantity</label><input type="number" name="quantity" id="qty-input" min="1" value="1" required></div>
-          <div class="field"><label>Unit price (PHP)</label><input type="number" step="0.01" name="unit_price" id="unit-price-input" required></div>
-        </div>
+
+    <div class="field">
+
+        <label>Supplier</label>
+
+        <select
+            id="supplier-select"
+            name="supplier_id"
+            required>
+
+            <option value="">Select Supplier</option>
+
+            <?php foreach($suppliersList as $supplier): ?>
+
+                <option value="<?= $supplier['supplier_id'] ?>">
+
+                    <?= e($supplier['name']) ?>
+
+                </option>
+
+            <?php endforeach; ?>
+
+        </select>
+
+    </div>
+
+    <div class="field">
+
+    <label>Product</label>
+
+    <select
+        id="product-select"
+        name="catalogue_id"
+        required>
+
+        <option value="">
+            Select Supplier First
+        </option>
+
+    </select>
+
+</div>
+
+</div>
+        <div class="field-row">
+
+    <div class="field">
+
+        <label>Quantity</label>
+
+        <input
+            id="qty-input"
+            type="number"
+            name="quantity"
+            value="1"
+            min="1"
+            required>
+
+    </div>
+
+    <div class="field">
+
+    <label>Unit price (PHP)</label>
+
+    <input
+        type="number"
+        step="0.01"
+        name="unit_price"
+        id="unit-price-input"
+        readonly>
+
+  </div>
+
+</div>
+
+<div class="field">
+
+    <label>Total</label>
+
+    <input
+        id="total-input"
+        readonly>
+
+</div>
         <div class="field-row">
           <div class="field"><label>Issue date</label><input type="date" name="issue_date" value="<?= date('Y-m-d') ?>" required></div>
           <div class="field"><label>Expected delivery</label><input type="date" name="expected_delivery_date"></div>
@@ -120,14 +215,145 @@ require __DIR__ . '/includes/header.php';
 </div>
 
 <script>
-function fillFromReq(sel){
-  const opt = sel.options[sel.selectedIndex];
-  if(!opt.value) return;
-  const qty = opt.dataset.qty, amount = parseFloat(opt.dataset.amount), supplier = opt.dataset.supplier;
-  document.getElementById('qty-input').value = qty;
-  document.getElementById('unit-price-input').value = qty > 0 ? (amount / qty).toFixed(2) : amount;
-  if (supplier) document.getElementById('supplier-select').value = supplier;
+const catalogue = <?= json_encode(
+    $pdo->query("
+        SELECT
+            catalogue_id,
+            supplier_id,
+            product_name,
+            unit,
+            unit_price
+        FROM supplier_catalogue
+        ORDER BY product_name
+    ")->fetchAll()
+) ?>;
+
+const supplierSelect = document.getElementById('supplier-select');
+const productSelect  = document.getElementById('product-select');
+const reqSelect      = document.getElementById('req-select');
+
+const qtyInput       = document.getElementById('qty-input');
+const unitPriceInput = document.getElementById('unit-price-input');
+const totalInput     = document.getElementById('total-input');
+
+function refreshProducts(selectedCatalogue = null){
+
+    const supplierId = supplierSelect.value;
+
+    productSelect.innerHTML =
+        '<option value="">Select Product</option>';
+
+    unitPriceInput.value = '';
+    totalInput.value = '';
+
+    if(!supplierId) return;
+
+    catalogue
+        .filter(item => item.supplier_id == supplierId)
+        .forEach(item => {
+
+            const option = document.createElement('option');
+
+            option.value = item.catalogue_id;
+            option.dataset.price = item.unit_price;
+
+            option.textContent =
+                item.product_name +
+                " (" +
+                item.unit +
+                ")";
+
+            if(selectedCatalogue &&
+               item.catalogue_id == selectedCatalogue){
+                option.selected = true;
+            }
+
+            productSelect.appendChild(option);
+
+        });
+
+    if(selectedCatalogue){
+        updatePrice();
+    }
+
 }
+
+function updatePrice(){
+
+    const option =
+        productSelect.options[productSelect.selectedIndex];
+
+    if(!option || !option.dataset.price){
+
+        unitPriceInput.value = '';
+        updateTotal();
+        return;
+
+    }
+
+    unitPriceInput.value =
+        parseFloat(option.dataset.price).toFixed(2);
+
+    updateTotal();
+
+}
+
+function updateTotal(){
+
+    const qty =
+        parseInt(qtyInput.value) || 0;
+
+    const price =
+        parseFloat(unitPriceInput.value) || 0;
+
+    totalInput.value =
+        (qty * price).toFixed(2);
+
+}
+
+function fillFromReq(sel){
+
+    const option = sel.options[sel.selectedIndex];
+
+    if(!option.value){
+
+        supplierSelect.value = '';
+
+        refreshProducts();
+
+        qtyInput.value = 1;
+
+        return;
+
+    }
+
+    supplierSelect.value = option.dataset.supplier;
+
+    refreshProducts(option.dataset.catalogue);
+
+    qtyInput.value = option.dataset.qty;
+
+    updateTotal();
+
+}
+
+supplierSelect.addEventListener('change', function(){
+
+    refreshProducts();
+
+});
+
+productSelect.addEventListener('change', function(){
+
+    updatePrice();
+
+});
+
+qtyInput.addEventListener('input', function(){
+
+    updateTotal();
+
+});
 </script>
 
 <?php require __DIR__ . '/includes/footer.php'; ?>
